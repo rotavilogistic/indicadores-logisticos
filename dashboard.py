@@ -119,24 +119,57 @@ try:
         st.plotly_chart(fig_asesor, use_container_width=True)
 
  # ==========================================
-    # GRÁFICO NIVEL 2: CAUSA RAÍZ
+    # GRÁFICO NIVEL 2: CAUSA RAÍZ (PARETO)
     # ==========================================
     st.markdown("---")
-    st.markdown("<h2 style='font-size: 22px;'>Análisis de Causa Raíz: Motivos de Devolución</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='font-size: 22px;'>Análisis de Causa Raíz: Motivos de Devolución (Pareto)</h2>", unsafe_allow_html=True)
     
+    # 1. Agrupar y ordenar de mayor a menor
     resumen_motivos = df_devoluciones.groupby('Motivo_Detalle')['Valor_Total'].sum().reset_index()
-    resumen_motivos = resumen_motivos.sort_values(by='Valor_Total', ascending=False) 
+    resumen_motivos = resumen_motivos.sort_values(by='Valor_Total', ascending=False)
     
-    fig_motivos = px.bar(
-        resumen_motivos, x='Motivo_Detalle', y='Valor_Total',
-        title="Distribución Financiera por Motivo de Rechazo",
-        labels={'Valor_Total': 'Dinero Devuelto ($)', 'Motivo_Detalle': 'Causal Operativa'},
-        text_auto='.3s', color_discrete_sequence=['#d62728'] 
+    # 2. Calcular el porcentaje acumulado para la línea de Pareto
+    resumen_motivos['Porcentaje'] = (resumen_motivos['Valor_Total'] / resumen_motivos['Valor_Total'].sum()) * 100
+    resumen_motivos['Acumulado'] = resumen_motivos['Porcentaje'].cumsum()
+    
+    # 3. Construir el gráfico combinado en Plotly (Barras + Línea)
+    import plotly.graph_objects as go
+    
+    fig_pareto = go.Figure()
+    
+    # Agregar las barras de impacto financiero (Eje Y principal)
+    fig_pareto.add_trace(go.Bar(
+        x=resumen_motivos['Motivo_Detalle'],
+        y=resumen_motivos['Valor_Total'],
+        name='Impacto Financiero',
+        marker_color='#d62728',
+        hovertemplate='Causal: %{x}<br>Dinero Devuelto: $%{y:,.0f}'
+    ))
+    
+    # Agregar la línea de % Acumulado (Eje Y secundario)
+    fig_pareto.add_trace(go.Scatter(
+        x=resumen_motivos['Motivo_Detalle'],
+        y=resumen_motivos['Acumulado'],
+        name='% Acumulado',
+        mode='lines+markers',
+        line=dict(color='#1f77b4', width=3),
+        marker=dict(size=8),
+        yaxis='y2',
+        hovertemplate='% Acumulado: %{y:.1f}%'
+    ))
+    
+    # Configurar el diseño con doble eje
+    fig_pareto.update_layout(
+        title="Distribución Financiera y Curva de Pareto (Regla 80/20)",
+        title_x=0.5,
+        title_font_size=18,
+        hovermode="x unified", # Muestra ambos datos al pasar el mouse
+        yaxis=dict(title="Dinero Devuelto ($)", side='left'),
+        yaxis2=dict(title="Porcentaje Acumulado (%)", side='right', overlaying='y', range=[0, 105]),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
-    fig_motivos.update_layout(title_x=0.5, title_font_size=18)
-    # Formateo profesional del globo interactivo con separadores de miles
-    fig_motivos.update_traces(hovertemplate='Causal: %{x}<br>Dinero Devuelto: $%{y:,.0f}')
-    st.plotly_chart(fig_motivos, use_container_width=True)
+    
+    st.plotly_chart(fig_pareto, use_container_width=True)
 
   # ==========================================
     # EL MAPA DE CALOR (Vehículo vs Motivo)
