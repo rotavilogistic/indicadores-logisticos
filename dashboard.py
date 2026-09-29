@@ -99,10 +99,14 @@ try:
         total_devuelto = df_filtrado[df_filtrado['Estatus_Operacion'] == 'Devolucion']['Valor_Total'].sum()
         porcentaje_devolucion = (total_devuelto / total_despachado) * 100 if total_despachado > 0 else 0
         
+        # INYECCIÓN DE LA META LOGÍSTICA (1.9%)
+        meta_devolucion = 1.9
+        brecha_meta = porcentaje_devolucion - meta_devolucion
+        
         col1, col2, col3 = st.columns(3)
         col1.metric("Total Facturado / Despachado", f"${total_despachado:,.0f}")
         col2.metric("Total Devuelto", f"${total_devuelto:,.0f}")
-        col3.metric("% de Devolución (Valor)", f"{porcentaje_devolucion:.2f}%")
+        col3.metric("Índice de Devolución (Valor)", f"{porcentaje_devolucion:.2f}%", f"{brecha_meta:+.2f}% vs Meta ({meta_devolucion}%)", delta_color="inverse")
         
         df_devoluciones = df_filtrado[df_filtrado['Estatus_Operacion'] == 'Devolucion']
 
@@ -140,6 +144,15 @@ try:
             hovertemplate='Dinero Devuelto: $%{y:,.0f}'
         ))
         
+        # INYECCIÓN DE LA LÍNEA DE META EN EL GRÁFICO (Trazo Sólido)
+        if not tendencia.empty:
+            fig_tendencia.add_trace(go.Scatter(
+                x=tendencia['Eje_X'], y=[meta_devolucion] * len(tendencia),
+                name=f'Meta Corporativa ({meta_devolucion}%)', mode='lines', 
+                line=dict(color='#2ecc71', width=2, dash='solid'), yaxis='y2', # <--- Cambio a trazo sólido ('solid')
+                hoverinfo='skip'
+            ))
+        
         fig_tendencia.add_trace(go.Scatter(
             x=tendencia['Eje_X'], y=tendencia['% Devolucion'],
             name='Índice de Devolución (%)', mode='lines+markers', 
@@ -166,7 +179,7 @@ try:
             title="", hovermode="x unified",
             xaxis=dict(type='category', showgrid=False, title=""), 
             yaxis=dict(title="Dinero Devuelto ($)", showgrid=True, gridcolor='rgba(255,255,255,0.08)', showticklabels=True, range=[0, max_money * 1.2]), 
-            yaxis2=dict(title="Índice (%)", showgrid=False, showticklabels=True, overlaying='y', side='right', range=[0, max_pct * 1.4]), 
+            yaxis2=dict(title="Índice (%)", showgrid=False, showticklabels=True, overlaying='y', side='right', range=[0, max(max_pct, meta_devolucion) * 1.4]), 
             plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             height=480, margin=dict(t=30, b=60, l=10, r=10)
@@ -368,7 +381,6 @@ try:
         
         st.markdown("---")
 
-        # 2. TABLAS DE RESUMEN
         df_pendientes = df_cartera_base[(df_cartera_base['Estado_Planilla'] == 'P') & (df_cartera_base['Estatus_Operacion'] == 'Despachado')]
         
         if df_pendientes.empty:
@@ -397,7 +409,6 @@ try:
             with col_tab2:
                 st.markdown("#### Planillas Pendientes")
                 
-                # Se removió la columna Asesor a petición
                 cartera_planilla = df_pendientes.groupby(['Fecha_Date', 'Planilla']).agg(
                     Clientes_Distintos=('Codigo_Cliente', 'nunique'),
                     Valor_Total=('Valor_Total', 'sum')
@@ -411,7 +422,6 @@ try:
                     "Valor_Total": st.column_config.NumberColumn("Valor a Cobrar", format="$%,.0f")
                 }
 
-                # Funcionalidad de clic en la fila (Drill-Down)
                 try:
                     seleccion = st.dataframe(
                         cartera_planilla,
@@ -475,7 +485,6 @@ try:
                         use_container_width=True
                     )
 
-            # 3. TABLA ORIGINAL RESTAURADA A PANTALLA COMPLETA
             st.markdown("---")
             st.markdown("### Detalle General de Cartera por Cliente")
             
